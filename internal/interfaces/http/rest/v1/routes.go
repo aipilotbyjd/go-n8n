@@ -43,6 +43,7 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 			auth.POST("/refresh", refreshTokenHandler)
 			auth.POST("/forgot-password", forgotPasswordHandler)
 			auth.POST("/reset-password", resetPasswordHandler)
+			auth.POST("/verify-email", verifyEmailHandler)
 		}
 
 		// Webhook endpoints (public but validated)
@@ -57,6 +58,9 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 			protected.PUT("/auth/me", updateCurrentUser)
 			protected.POST("/auth/logout", logoutHandler)
 			protected.POST("/auth/change-password", changePasswordHandler)
+			protected.POST("/auth/2fa/enable", enable2FAHandler)
+			protected.POST("/auth/2fa/disable", disable2FAHandler)
+			protected.POST("/auth/2fa/verify", verify2FAHandler)
 
 			// Workflow routes
 			workflows := protected.Group("/workflows")
@@ -73,6 +77,15 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 				workflows.GET("/:id/executions", getWorkflowExecutions)
 				workflows.POST("/:id/share", shareWorkflow)
 				workflows.GET("/:id/versions", getWorkflowVersions)
+				workflows.POST("/:id/test", testWorkflow)
+				workflows.GET("/:id/nodes", getWorkflowNodes)
+				workflows.PUT("/:id/nodes", updateWorkflowNodes)
+				workflows.GET("/:id/export", exportWorkflow)
+				workflows.POST("/import", importWorkflow)
+				workflows.GET("/:id/statistics", getWorkflowStatistics)
+				workflows.GET("/:id/metrics", getWorkflowMetrics)
+				workflows.POST("/:id/versions/:versionId/restore", restoreWorkflowVersion)
+				workflows.POST("/batch", batchWorkflowOperations)
 			}
 
 			// Node routes
@@ -80,7 +93,14 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 			{
 				nodes.GET("/types", listNodeTypes)
 				nodes.GET("/types/:type", getNodeType)
+				nodes.GET("/types/:type/schema", getNodeSchema)
 				nodes.POST("/test", testNode)
+				nodes.PUT("/:id", updateNode)
+				nodes.DELETE("/:id", deleteNode)
+				nodes.POST("/:id/test", testNodeById)
+				nodes.GET("/:id/executions/:executionId/data", getNodeExecutionData)
+				nodes.POST("/:id/pin", pinNodeData)
+				nodes.DELETE("/:id/pin", unpinNodeData)
 			}
 
 			// Execution routes
@@ -92,6 +112,9 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 				executions.POST("/:id/retry", retryExecution)
 				executions.DELETE("/:id", deleteExecution)
 				executions.GET("/:id/data", getExecutionData)
+				executions.POST("/delete", deleteMultipleExecutions)
+				executions.GET("/:id/logs", getExecutionLogs)
+				executions.GET("/:id/timeline", getExecutionTimeline)
 			}
 
 			// Credential routes
@@ -103,6 +126,9 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 				credentials.PUT("/:id", updateCredential)
 				credentials.DELETE("/:id", deleteCredential)
 				credentials.POST("/:id/test", testCredential)
+				credentials.GET("/oauth2/:credentialType/auth", getOAuth2URL)
+				credentials.GET("/oauth2/callback", oAuth2Callback)
+				credentials.POST("/:id/share", shareCredential)
 			}
 
 			// Variable routes
@@ -129,6 +155,9 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 			{
 				settings.GET("", getSettings)
 				settings.PUT("", updateSettings)
+				settings.GET("/smtp", getSMTPSettings)
+				settings.PUT("/smtp", updateSMTPSettings)
+				settings.POST("/smtp/test", testSMTPSettings)
 			}
 
 			// Stats routes
@@ -137,6 +166,146 @@ func NewRouter(cfg *configs.Config, db *database.DB, log *logger.Logger) *gin.En
 				stats.GET("/workflows", getWorkflowStats)
 				stats.GET("/executions", getExecutionStats)
 				stats.GET("/usage", getUsageStats)
+			}
+
+			// User management routes
+			users := protected.Group("/users")
+			{
+				users.GET("/:id", getUser)
+				users.PUT("/:id", updateUser)
+				users.PUT("/:id/settings", updateUserSettings)
+				users.GET("/:id/permissions", getUserPermissions)
+				users.PUT("/:id/permissions", updateUserPermissions)
+			}
+
+			// Templates routes
+			templates := protected.Group("/templates")
+			{
+				templates.GET("", listTemplates)
+				templates.GET("/:id", getTemplate)
+				templates.POST("", createTemplate)
+				templates.PUT("/:id", updateTemplate)
+				templates.DELETE("/:id", deleteTemplate)
+				templates.POST("/:id/use", useTemplate)
+				templates.GET("/categories", getTemplateCategories)
+			}
+
+			// API Keys routes
+			apiKeys := protected.Group("/api-keys")
+			{
+				apiKeys.GET("", listAPIKeys)
+				apiKeys.POST("", createAPIKey)
+				apiKeys.GET("/:id", getAPIKey)
+				apiKeys.DELETE("/:id", revokeAPIKey)
+			}
+
+			// Webhooks routes
+			webhooks := protected.Group("/webhooks")
+			{
+				webhooks.GET("", listWebhooks)
+				webhooks.POST("", createWebhook)
+				webhooks.GET("/:id", getWebhook)
+				webhooks.PUT("/:id", updateWebhook)
+				webhooks.DELETE("/:id", deleteWebhook)
+				webhooks.POST("/:id/test", testWebhook)
+				webhooks.GET("/:id/url", getWebhookURL)
+			}
+
+			// Schedules routes
+			schedules := protected.Group("/schedules")
+			{
+				schedules.GET("", listSchedules)
+				schedules.POST("", createSchedule)
+				schedules.GET("/:id", getSchedule)
+				schedules.PUT("/:id", updateSchedule)
+				schedules.DELETE("/:id", deleteSchedule)
+				schedules.POST("/:id/activate", activateSchedule)
+				schedules.POST("/:id/deactivate", deactivateSchedule)
+			}
+
+			// Notifications routes
+			notifications := protected.Group("/notifications")
+			{
+				notifications.GET("", getNotifications)
+				notifications.PUT("/:id/read", markNotificationRead)
+				notifications.PUT("/read-all", markAllNotificationsRead)
+				notifications.DELETE("/:id", deleteNotification)
+				notifications.GET("/settings", getNotificationSettings)
+				notifications.PUT("/settings", updateNotificationSettings)
+			}
+
+			// Search routes
+			search := protected.Group("/search")
+			{
+				search.GET("", globalSearch)
+				search.GET("/workflows", searchWorkflows)
+				search.GET("/executions", searchExecutions)
+			}
+
+			// Audit logs routes
+			auditLogs := protected.Group("/audit-logs")
+			{
+				auditLogs.GET("", listAuditLogs)
+				auditLogs.GET("/:id", getAuditLog)
+			}
+
+			// Metrics routes
+			metrics := protected.Group("/metrics")
+			{
+				metrics.GET("", getMetrics)
+				metrics.GET("/queue", getQueueStatus)
+				metrics.GET("/executions", getExecutionStatistics)
+				metrics.GET("/workers", getWorkerStatus)
+				metrics.GET("/performance", getPerformanceMetrics)
+			}
+
+			// Import/Export routes
+			protected.GET("/export/workflows", exportAllWorkflows)
+			protected.GET("/export/credentials", exportAllCredentials)
+			protected.GET("/export/all", exportAllData)
+			protected.POST("/import", importData)
+
+			// Community routes
+			community := protected.Group("/community")
+			{
+				community.GET("/workflows", getCommunityWorkflows)
+				community.POST("/workflows", publishWorkflowToCommunity)
+				community.GET("/workflows/:id/reviews", getWorkflowReviews)
+				community.POST("/workflows/:id/reviews", addWorkflowReview)
+				community.POST("/workflows/:id/report", reportWorkflow)
+			}
+
+			// Integrations routes
+			integrations := protected.Group("/integrations")
+			{
+				integrations.GET("", listIntegrations)
+				integrations.GET("/:name", getIntegrationDetails)
+				integrations.POST("/:name/install", installIntegration)
+				integrations.POST("/:name/uninstall", uninstallIntegration)
+				integrations.PUT("/:name", updateIntegration)
+			}
+
+			// Teams routes
+			teams := protected.Group("/teams")
+			{
+				teams.GET("", listTeams)
+				teams.POST("", createTeam)
+				teams.GET("/:id", getTeam)
+				teams.PUT("/:id", updateTeam)
+				teams.DELETE("/:id", deleteTeam)
+				teams.POST("/:id/members", addTeamMember)
+				teams.DELETE("/:id/members/:userId", removeTeamMember)
+				teams.PUT("/:id/members/:userId", updateTeamMemberRole)
+			}
+
+			// Billing routes (Enterprise)
+			billing := protected.Group("/billing")
+			{
+				billing.GET("/usage", getUsageStatistics)
+				billing.GET("/info", getBillingInfo)
+				billing.GET("/invoices", getInvoices)
+				billing.GET("/subscription", getSubscription)
+				billing.PUT("/subscription", updateSubscription)
 			}
 
 			// Admin routes
