@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: n8n-postgres
+    environment:
+      POSTGRES_USER: n8n_user
+      POSTGRES_PASSWORD: n8n_password
+      POSTGRES_DB: n8n_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - n8n_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: n8n-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - n8n_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Uncomment when API is ready
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: deployments/docker/Dockerfile.api
+  #   container_name: n8n-api
+  #   environment:
+  #     - ENV=development
+  #     - PORT=8080
+  #     - DB_HOST=postgres
+  #     - DB_PORT=5432
+  #     - DB_USER=n8n_user
+  #     - DB_PASSWORD=n8n_password
+  #     - DB_NAME=n8n_db
+  #     - REDIS_URL=redis://redis:6379
+  #     - JWT_SECRET=your-secret-key-change-in-production
+  #     - ENCRYPTION_KEY=your-32-byte-encryption-key-change
+  #   volumes:
+  #     - ./:/app
+  #     - ./storage:/app/storage
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - n8n_network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+  # Uncomment when worker is ready
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: deployments/docker/Dockerfile.worker
+  #   container_name: n8n-worker
+  #   environment:
+  #     - ENV=development
+  #     - DB_HOST=postgres
+  #     - DB_PORT=5432
+  #     - DB_USER=n8n_user
+  #     - DB_PASSWORD=n8n_password
+  #     - DB_NAME=n8n_db
+  #     - REDIS_URL=redis://redis:6379
+  #   volumes:
+  #     - ./:/app
+  #   networks:
+  #     - n8n_network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  n8n_network:
+    driver: bridge

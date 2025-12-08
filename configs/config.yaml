@@ -1,0 +1,194 @@
+app:
+  name: go-n8n
+  version: 1.0.0
+  environment: development
+  debug: true
+
+server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 15s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 30s
+
+database:
+  driver: postgres
+  host: localhost
+  port: 5432
+  user: n8n_user
+  password: n8n_password
+  name: n8n_db
+  ssl_mode: disable
+  max_connections: 25
+  max_idle_connections: 5
+  connection_max_lifetime: 5m
+  log_level: info
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+  max_retries: 3
+  pool_size: 10
+  min_idle_conns: 2
+  max_conn_age: 0
+  read_timeout: 3s
+  write_timeout: 3s
+  pool_timeout: 4s
+
+jwt:
+  secret: your-secret-key
+  access_token_expiry: 15m
+  refresh_token_expiry: 168h
+  issuer: go-n8n
+
+security:
+  bcrypt_cost: 12
+  encryption_key: your-32-byte-encryption-key-here
+  api_key_length: 32
+  session_lifetime: 24h
+  
+cors:
+  allowed_origins:
+    - http://localhost:3000
+    - http://localhost:5173
+  allowed_methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  allowed_headers:
+    - Accept
+    - Authorization
+    - Content-Type
+    - X-Request-ID
+  exposed_headers:
+    - X-Request-ID
+    - X-Total-Count
+  allow_credentials: true
+  max_age: 86400
+
+rate_limit:
+  enabled: true
+  requests: 100
+  duration: 1m
+  burst: 20
+
+engine:
+  max_parallel_executions: 10
+  max_execution_time: 3600s
+  worker_count: 5
+  queue_size: 1000
+  max_retries: 3
+  retry_backoff: 1m
+  checkpoint_interval: 30s
+
+node:
+  max_execution_time: 300s
+  enable_dynamic_loading: true
+  sandbox_execution: true
+  max_data_size: 10485760
+  timeout: 60s
+
+storage:
+  type: local
+  local:
+    path: ./storage
+  s3:
+    bucket: ""
+    region: us-east-1
+    endpoint: ""
+    access_key: ""
+    secret_key: ""
+
+logging:
+  level: debug
+  format: json
+  output: stdout
+  file:
+    enabled: false
+    path: ./logs/app.log
+    max_size: 100
+    max_age: 7
+    max_backups: 3
+    compress: true
+
+monitoring:
+  metrics:
+    enabled: true
+    port: 9090
+    path: /metrics
+  health:
+    enabled: true
+    path: /health
+    detailed: true
+  tracing:
+    enabled: false
+    service_name: go-n8n
+    jaeger_endpoint: http://localhost:14268/api/traces
+
+webhook:
+  base_url: http://localhost:8080
+  timeout: 30s
+  max_payload_size: 10485760
+  retry_attempts: 3
+  retry_delay: 5s
+
+scheduler:
+  enabled: true
+  check_interval: 1m
+  location: UTC
+  max_concurrent_jobs: 10
+
+worker:
+  concurrency: 10
+  queue_name: workflow-executions
+  retry_max: 3
+  retry_delay: 30s
+  shutdown_timeout: 30s
+
+email:
+  enabled: false
+  smtp:
+    host: smtp.gmail.com
+    port: 587
+    user: ""
+    password: ""
+    from: noreply@go-n8n.local
+    use_tls: true
+
+oauth:
+  google:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    redirect_url: http://localhost:8080/auth/google/callback
+    scopes:
+      - email
+      - profile
+  github:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    redirect_url: http://localhost:8080/auth/github/callback
+    scopes:
+      - user:email
+      - read:user
+
+features:
+  teams: false
+  marketplace: false
+  custom_nodes: true
+  webhook_tunnel: false
+  api_access: true
+  oauth_login: false
+  two_factor_auth: false
+
+limits:
+  max_workflows_per_user: 100
+  max_nodes_per_workflow: 500
+  max_execution_time: 3600s
+  max_file_size: 52428800
+  max_api_requests_per_minute: 1000
