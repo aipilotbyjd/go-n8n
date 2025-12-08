@@ -63,7 +63,7 @@ CREATE TABLE workflows (
 
 -- Executions table (partitioned by date)
 CREATE TABLE executions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID DEFAULT uuid_generate_v4(),
     workflow_id UUID NOT NULL REFERENCES workflows(id),
     workflow_version INT NOT NULL,
     status VARCHAR(50) NOT NULL, -- waiting, running, success, error, cancelled
@@ -75,9 +75,10 @@ CREATE TABLE executions (
     output_data JSONB DEFAULT '{}',
     error_message TEXT,
     error_node VARCHAR(255),
-    retry_of UUID REFERENCES executions(id),
+    retry_of UUID,
     retry_count INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 -- Create monthly partitions for executions (example for 2024)

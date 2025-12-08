@@ -79,9 +79,35 @@ sleep 5
 
 # Run database migrations
 echo -e "${YELLOW}Running database migrations...${NC}"
-docker-compose exec -T postgres psql -U n8n_user -d n8n_db -f - < internal/infrastructure/persistence/postgres/migrations/001_initial_schema.sql 2>/dev/null || {
-    echo -e "${YELLOW}Note: Migrations will be applied when you run 'make migrate-up'${NC}"
-}
+
+# Wait a bit more for PostgreSQL to be fully ready
+max_attempts=10
+attempt=0
+while [ $attempt -lt $max_attempts ]; do
+    if docker exec n8n-postgres pg_isready -U n8n_user -d n8n_db > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
+        break
+    fi
+    echo -n "."
+    sleep 2
+    attempt=$((attempt+1))
+done
+
+# Apply migrations
+if docker exec -i n8n-postgres psql -U n8n_user -d n8n_db < internal/infrastructure/persistence/postgres/migrations/001_initial_schema.sql 2>/dev/null; then
+    echo -e "${GREEN}✅ Database migrations applied successfully${NC}"
+else
+    echo -e "${YELLOW}⚠️  Migrations may have already been applied or encountered an error${NC}"
+    echo -e "${YELLOW}   You can manually run: make migrate-up${NC}"
+fi
+
+# Verify tables were created
+table_count=$(docker exec n8n-postgres psql -U n8n_user -d n8n_db -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ')
+if [ "$table_count" -gt "0" ]; then
+    echo -e "${GREEN}✅ Database tables created: $table_count tables found${NC}"
+else
+    echo -e "${YELLOW}⚠️  No tables found. Please run migrations manually.${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}🎉 Setup Complete!${NC}"
